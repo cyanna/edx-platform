@@ -141,7 +141,7 @@ from student.helpers import (
                 % endif
                 % if share_settings.get('TWITTER_SHARING', False):
                   <% share_text_default = _("I'm learning on {platform_name}:").format(platform_name=settings.PLATFORM_NAME) %>
-                  <% share_text = share_settings.get('TWITTER_SHARING_TEXT', share_text_default) %>
+                  <% share_text = urllib.quote_plus(share_settings.get('TWITTER_SHARING_TEXT', share_text_default)) %>
                   <% twitter_url = 'https://twitter.com/intent/tweet?text=' + share_text + '%20' + share_url %>
                     <a
                       data-tooltip="${_('Share on Twitter')}"
@@ -151,9 +151,6 @@ from student.helpers import (
                       href="${twitter_url}"
                       target="_blank"
                       title="${_('Share on Twitter')}"
-                      href="${twitter_url}"
-                      target="_blank"
-                      title="Tweet"
                       onclick="window.open('${twitter_url}', '${share_window_name}', '${share_window_config}'); return false;">
                       <span class="sr">${_('Twitter')}</span>
                       <i class="fa fa-twitter" aria-hidden="true"></i>
