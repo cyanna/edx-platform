@@ -60,6 +60,9 @@ South==1.0.1
 sympy==0.7.1
 xmltodict==0.4.1
 
+#mercurial
+mercurial==3.3.3
+
 # Metrics gathering and monitoring
 dogapi==1.2.1
 dogstatsd-python==0.2.1
@@ -79,3 +82,5 @@ transifex-client==0.9.1
 -e .
 
 -e git+https://github.com/edx/XBlock.git@b697bebd45deebd0f868613fab6722a0460ca0c1#egg=XBlock
+
+-e hg+https://bitbucket.org/cyanna/djangosaml2/@rm17367#egg=djangosaml2
