@@ -2108,6 +2108,10 @@ OPTIONAL_APPS = (
 
     # milestones
     'milestones',
+
+    # Extended API for Open edX
+    'edx_edvera_api',
+
 )
 
 for app_name in OPTIONAL_APPS:
@@ -2225,3 +2229,7 @@ ECOMMERCE_API_TIMEOUT = 5
 
 # Reverification checkpoint name pattern
 CHECKPOINT_PATTERN = r'(?P<checkpoint_name>\w+)'
+
+# EDVERA SYSTEM TOKEN
+EDVERA_SYSTEM_TOKEN = 'PLACEHOLDER_SECRET!'
+

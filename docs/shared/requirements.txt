@@ -84,3 +84,8 @@ transifex-client==0.9.1
 -e git+https://github.com/edx/XBlock.git@b697bebd45deebd0f868613fab6722a0460ca0c1#egg=XBlock
 
 -e hg+https://bitbucket.org/cyanna/djangosaml2/#egg=djangosaml2
+
+# If this repo is still private we should have an ssh key that can access the repo!
+-e git+ssh://git@github.com/cyanna/edx-edvera-api.git
+# If this repo is public, we can use the following:
+# -e git+https://github.com/cyanna/edx-edvera-api.git
