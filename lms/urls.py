@@ -618,6 +618,11 @@ urlpatterns += (
     url(r'^xdomain_proxy.html$', 'cors_csrf.views.xdomain_proxy', name='xdomain_proxy'),
 )
 
+# djangosaml2
+urlpatterns += (
+    url(r'^saml2/', include('djangosaml2.urls')),
+)
+
 urlpatterns = patterns(*urlpatterns)
 
 if settings.DEBUG:
