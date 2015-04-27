@@ -492,6 +492,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 
 # use the ratelimit backend to prevent brute force attacks
 AUTHENTICATION_BACKENDS = (
+    'djangosaml2.backends.Saml2Backend',
     'ratelimitbackend.backends.RateLimitModelBackend',
 )
 STUDENT_FILEUPLOAD_MAX_SIZE = 4 * 1000 * 1000  # 4 MB
@@ -514,7 +515,7 @@ DEV_CONTENT = True
 EDX_ROOT_URL = ''
 
 LOGIN_REDIRECT_URL = EDX_ROOT_URL + '/accounts/login'
-LOGIN_URL = EDX_ROOT_URL + '/accounts/login'
+LOGIN_URL = EDX_ROOT_URL + '/saml2/login/'
 
 COURSE_NAME = "6.002_Spring_2012"
 COURSE_NUMBER = "6.002x"
@@ -1698,6 +1699,8 @@ INSTALLED_APPS = (
     'cors_csrf',
 
     'commerce',
+
+    'djangosaml2',
 )
 
 ######################### CSRF #########################################
