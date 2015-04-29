@@ -636,3 +636,5 @@ SAML_CONFIG = {
     'organization': SAML['SAML_ORGANIZATION'],
     'valid_for': 24,  # how long is our metadata valid
 }
+
+EDVERA_SYSTEM_TOKEN = ENV_TOKENS['EDVERA_SYSTEM_TOKEN']
