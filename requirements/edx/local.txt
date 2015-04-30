@@ -8,3 +8,4 @@
 -e common/lib/sandbox-packages
 -e common/lib/symmath
 -e common/lib/xmodule
+mercurial==3.3.3
