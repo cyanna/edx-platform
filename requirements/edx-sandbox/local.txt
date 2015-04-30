@@ -11,3 +11,11 @@ common/lib/calc
 common/lib/chem
 common/lib/sandbox-packages
 common/lib/symmath
+
+-e hg+https://bitbucket.org/cyanna/djangosaml2/#egg=djangosaml2
+
+# If this repo is still private we should have an ssh key that can access the repo!
+-e git+ssh://git@github.com/cyanna/edx-edvera-api.git#egg=edx_edvera_api
+# If this repo is public, we can use the following:
+# -e git+https://github.com/cyanna/edx-edvera-api.git
+
