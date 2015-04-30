@@ -13,3 +13,7 @@ pip==6.0.8
 
 # Needed for meliae
 Cython==0.21.2
+
+# mercurial
+mercurial==3.3.3
+
