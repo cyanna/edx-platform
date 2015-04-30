@@ -39,6 +39,7 @@ log = logging.getLogger(__name__)
 
 XMODULE_METRIC_NAME = 'edxapp.xmodule'
 XMODULE_DURATION_METRIC_NAME = XMODULE_METRIC_NAME + '.duration'
+XMODULE_METRIC_SAMPLE_RATE = 0.1
 
 # Stats event sent to DataDog in order to determine if old XML parsing can be deprecated.
 DEPRECATION_VSCOMPAT_EVENT = 'deprecation.vscompat'
@@ -554,6 +555,8 @@ class XModuleMixin(XModuleFields, XBlockMixin):
 
         # Skip rebinding if we're already bound a user, and it's this user.
         if self.scope_ids.user_id is not None and user_id == self.scope_ids.user_id:
+            if getattr(xmodule_runtime, 'position', None):
+                self.position = xmodule_runtime.position   # update the position of the tab
             return
 
         # If we are switching users mid-request, save the data from the old user.
@@ -1193,13 +1196,15 @@ class MetricsMixin(object):
                 u'action:render',
                 u'action_status:{}'.format(status),
                 u'course_id:{}'.format(course_id),
-                u'block_type:{}'.format(block.scope_ids.block_type)
+                u'block_type:{}'.format(block.scope_ids.block_type),
+                u'block_family:{}'.format(block.entry_point),
             ]
-            dog_stats_api.increment(XMODULE_METRIC_NAME, tags=tags)
+            dog_stats_api.increment(XMODULE_METRIC_NAME, tags=tags, sample_rate=XMODULE_METRIC_SAMPLE_RATE)
             dog_stats_api.histogram(
                 XMODULE_DURATION_METRIC_NAME,
                 end_time - start_time,
-                tags=tags
+                tags=tags,
+                sample_rate=XMODULE_METRIC_SAMPLE_RATE,
             )
 
     def handle(self, block, handler_name, request, suffix=''):
@@ -1220,13 +1225,15 @@ class MetricsMixin(object):
                 u'action:handle',
                 u'action_status:{}'.format(status),
                 u'course_id:{}'.format(course_id),
-                u'block_type:{}'.format(block.scope_ids.block_type)
+                u'block_type:{}'.format(block.scope_ids.block_type),
+                u'block_family:{}'.format(block.entry_point),
             ]
-            dog_stats_api.increment(XMODULE_METRIC_NAME, tags=tags)
+            dog_stats_api.increment(XMODULE_METRIC_NAME, tags=tags, sample_rate=XMODULE_METRIC_SAMPLE_RATE)
             dog_stats_api.histogram(
                 XMODULE_DURATION_METRIC_NAME,
                 end_time - start_time,
-                tags=tags
+                tags=tags,
+                sample_rate=XMODULE_METRIC_SAMPLE_RATE
             )
 
 

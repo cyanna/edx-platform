@@ -23,7 +23,7 @@ from django.core.urlresolvers import reverse
 from django.core.validators import validate_email, ValidationError
 from django.db import IntegrityError, transaction
 from django.http import (HttpResponse, HttpResponseBadRequest, HttpResponseForbidden,
-                         Http404)
+                         HttpResponseServerError, Http404)
 from django.shortcuts import redirect
 from django.utils.translation import ungettext
 from django_future.csrf import ensure_csrf_cookie
@@ -128,6 +128,8 @@ log = logging.getLogger("edx.student")
 AUDIT_LOG = logging.getLogger("audit")
 
 ReverifyInfo = namedtuple('ReverifyInfo', 'course_id course_name course_number date status display')  # pylint: disable=invalid-name
+
+SETTING_CHANGE_INITIATED = 'edx.user.settings.change_initiated'
 
 
 def csrf_token(context):
@@ -498,6 +500,8 @@ def is_course_blocked(request, redeemed_registration_codes, course_key):
 def dashboard(request):
     user = request.user
 
+    platform_name = microsite.get_value("platform_name", settings.PLATFORM_NAME)
+
     # for microsites, we want to filter and only show enrollments for courses within
     # the microsites 'ORG'
     course_org_filter = microsite.get_value('course_org_filter')
@@ -541,7 +545,7 @@ def dashboard(request):
     if not user.is_active:
         message = render_to_string(
             'registration/activate_account_notice.html',
-            {'email': user.email, 'platform_name': settings.PLATFORM_NAME}
+            {'email': user.email, 'platform_name': platform_name}
         )
 
     # Global staff can see what courses errored on their dashboard
@@ -618,39 +622,10 @@ def dashboard(request):
 
     enrolled_courses_either_paid = frozenset(course.id for course, _enrollment in course_enrollment_pairs
                                              if _enrollment.is_paid_course())
-    # get info w.r.t ExternalAuthMap
-    external_auth_map = None
-    try:
-        external_auth_map = ExternalAuthMap.objects.get(user=user)
-    except ExternalAuthMap.DoesNotExist:
-        pass
 
     # If there are *any* denied reverifications that have not been toggled off,
     # we'll display the banner
     denied_banner = any(item.display for item in reverifications["denied"])
-
-    language_options = DarkLangConfig.current().released_languages_list
-
-    # add in the default language if it's not in the list of released languages
-    if settings.LANGUAGE_CODE not in language_options:
-        language_options.append(settings.LANGUAGE_CODE)
-        # Re-alphabetize language options
-        language_options.sort()
-
-    # try to get the preferred language for the user
-    preferred_language_code = preferences_api.get_user_preference(request.user, LANGUAGE_KEY)
-    # try and get the current language of the user
-    current_language_code = get_language()
-    if preferred_language_code and preferred_language_code in settings.LANGUAGE_DICT:
-        # if the user has a preference, get the name from the code
-        current_language = settings.LANGUAGE_DICT[preferred_language_code]
-    elif current_language_code in settings.LANGUAGE_DICT:
-        # if the user's browser is showing a particular language,
-        # use that as the current language
-        current_language = settings.LANGUAGE_DICT[current_language_code]
-    else:
-        # otherwise, use the default language
-        current_language = settings.LANGUAGE_DICT[settings.LANGUAGE_CODE]
 
     # Populate the Order History for the side-bar.
     order_history_list = order_history(user, course_org_filter=course_org_filter, org_filter_out_set=org_filter_out_set)
@@ -660,12 +635,22 @@ def dashboard(request):
                                              if course.pre_requisite_courses)
     courses_requirements_not_met = get_pre_requisite_courses_not_completed(user, courses_having_prerequisites)
 
+    ccx_membership_triplets = []
+    if settings.FEATURES.get('CUSTOM_COURSES_EDX', False):
+        from ccx import ACTIVE_CCX_KEY
+        from ccx.utils import get_ccx_membership_triplets
+        ccx_membership_triplets = get_ccx_membership_triplets(
+            user, course_org_filter, org_filter_out_set
+        )
+        # should we deselect any active CCX at this time so that we don't have
+        # to change the URL for viewing a course?  I think so.
+        request.session[ACTIVE_CCX_KEY] = None
+
     context = {
         'enrollment_message': enrollment_message,
         'course_enrollment_pairs': course_enrollment_pairs,
         'course_optouts': course_optouts,
         'message': message,
-        'external_auth_map': external_auth_map,
         'staff_access': staff_access,
         'errored_courses': errored_courses,
         'show_courseware_links_for': show_courseware_links_for,
@@ -680,22 +665,15 @@ def dashboard(request):
         'block_courses': block_courses,
         'denied_banner': denied_banner,
         'billing_email': settings.PAYMENT_SUPPORT_EMAIL,
-        'language_options': language_options,
-        'current_language': current_language,
-        'current_language_code': current_language_code,
         'user': user,
-        'duplicate_provider': None,
         'logout_url': reverse(logout_user),
-        'platform_name': settings.PLATFORM_NAME,
+        'platform_name': platform_name,
         'enrolled_courses_either_paid': enrolled_courses_either_paid,
         'provider_states': [],
         'order_history_list': order_history_list,
         'courses_requirements_not_met': courses_requirements_not_met,
+        'ccx_membership_triplets': ccx_membership_triplets,
     }
-
-    if third_party_auth.is_enabled():
-        context['duplicate_provider'] = pipeline.get_duplicate_provider(messages.get_messages(request))
-        context['provider_user_states'] = pipeline.get_provider_user_states(user)
 
     return render_to_response('dashboard.html', context)
 
@@ -726,9 +704,11 @@ def _create_recent_enrollment_message(course_enrollment_pairs, course_modes):
             for course, enrollment in recently_enrolled_courses
         ]
 
+        platform_name = microsite.get_value('platform_name', settings.PLATFORM_NAME)
+
         return render_to_string(
             'enrollment/course_enrollment_message.html',
-            {'course_enrollment_messages': messages, 'platform_name': settings.PLATFORM_NAME}
+            {'course_enrollment_messages': messages, 'platform_name': platform_name}
         )
 
 
@@ -1408,6 +1388,19 @@ def create_account_with_params(request, params):
     Raises AccountValidationError if an account with the username or email
     specified by params already exists, or ValidationError if any of the given
     parameters is invalid for any other reason.
+
+    Issues with this code:
+    * It is not transactional. If there is a failure part-way, an incomplete
+      account will be created and left in the database.
+    * Third-party auth passwords are not verified. There is a comment that
+      they are unused, but it would be helpful to have a sanity check that
+      they are sane.
+    * It is over 300 lines long (!) and includes disprate functionality, from
+      registration e-mails to all sorts of other things. It should be broken
+      up into semantically meaningful functions.
+    * The user-facing text is rather unfriendly (e.g. "Username must be a
+      minimum of two characters long" rather than "Please use a username of
+      at least two characters").
     """
     # Copy params so we can modify it; we can't just do dict(params) because if
     # params is request.POST, that results in a dict containing lists of values
@@ -1555,9 +1548,19 @@ def create_account_with_params(request, params):
     subject = ''.join(subject.splitlines())
     message = render_to_string('emails/activation_email.txt', context)
 
-    # don't send email if we are doing load testing or random user generation for some reason
-    # or external auth with bypass activated
+    # Don't send email if we are:
+    #
+    # 1. Doing load testing.
+    # 2. Random user generation for other forms of testing.
+    # 3. External auth bypassing activation.
+    # 4. Have the platform configured to not require e-mail activation.
+    #
+    # Note that this feature is only tested as a flag set one way or
+    # the other for *new* systems. we need to be careful about
+    # changing settings on a running system to make sure no users are
+    # left in an inconsistent state (or doing a migration if they are).
     send_email = (
+        not settings.FEATURES.get('SKIP_EMAIL_VALIDATION', None) and
         not settings.FEATURES.get('AUTOMATIC_AUTH_FOR_TESTING') and
         not (do_external_auth and settings.FEATURES.get('BYPASS_ACTIVATION_EMAIL_FOR_EXTAUTH'))
     )
@@ -1576,6 +1579,8 @@ def create_account_with_params(request, params):
                 user.email_user(subject, message, from_address)
         except Exception:  # pylint: disable=broad-except
             log.error(u'Unable to send activation email to user from "%s"', from_address, exc_info=True)
+    else:
+        registration.activate()
 
     # Immediately after a user creates an account, we log them in. They are only
     # logged in until they close the browser. They can't log in again until they click
@@ -1717,13 +1722,14 @@ def auto_auth(request):
     # If successful, this will return a tuple containing
     # the new user object.
     try:
-        user, _profile, reg = _do_create_account(form)
+        user, profile, reg = _do_create_account(form)
     except AccountValidationError:
         # Attempt to retrieve the existing user.
         user = User.objects.get(username=username)
         user.email = email
         user.set_password(password)
         user.save()
+        profile = UserProfile.objects.get(user=user)
         reg = Registration.objects.get(user=user)
 
     # Set the user's global staff bit
@@ -1734,6 +1740,12 @@ def auto_auth(request):
     # Activate the user
     reg.activate()
     reg.save()
+
+    # ensure parental consent threshold is met
+    year = datetime.date.today().year
+    age_limit = settings.PARENTAL_CONSENT_AGE_LIMIT
+    profile.year_of_birth = (year - age_limit) - 1
+    profile.save()
 
     # Enroll the user in a course
     if course_key is not None:
@@ -1781,6 +1793,16 @@ def activate_account(request, key):
                 if cea.auto_enroll:
                     CourseEnrollment.enroll(student[0], cea.course_id)
 
+            # enroll student in any pending CCXs he/she may have if auto_enroll flag is set
+            if settings.FEATURES.get('CUSTOM_COURSES_EDX'):
+                from ccx.models import CcxMembership, CcxFutureMembership
+                ccxfms = CcxFutureMembership.objects.filter(
+                    email=student[0].email
+                )
+                for ccxfm in ccxfms:
+                    if ccxfm.auto_enroll:
+                        CcxMembership.auto_enroll(student[0], ccxfm)
+
         resp = render_to_response(
             "registration/activation_complete.html",
             {
@@ -1794,7 +1816,7 @@ def activate_account(request, key):
             "registration/activation_invalid.html",
             {'csrf': csrf(request)['csrf_token']}
         )
-    return HttpResponse(_("Unknown error. Please e-mail us to let us know how it happened."))
+    return HttpResponseServerError(_("Unknown error. Please e-mail us to let us know how it happened."))
 
 
 @csrf_exempt
@@ -1813,6 +1835,18 @@ def password_reset(request):
                   from_email=settings.DEFAULT_FROM_EMAIL,
                   request=request,
                   domain_override=request.get_host())
+        # When password change is complete, a "edx.user.settings.changed" event will be emitted.
+        # But because changing the password is multi-step, we also emit an event here so that we can
+        # track where the request was initiated.
+        tracker.emit(
+            SETTING_CHANGE_INITIATED,
+            {
+                "setting": "password",
+                "old": None,
+                "new": None,
+                "user_id": request.user.id,
+            }
+        )
     else:
         # bad user? tick the rate limiter counter
         AUDIT_LOG.info("Bad password_reset user passed in.")
@@ -1991,7 +2025,7 @@ def validate_new_email(user, new_email):
         raise ValueError(_('An account with this e-mail already exists.'))
 
 
-def do_email_change_request(user, new_email, activation_key=uuid.uuid4().hex):
+def do_email_change_request(user, new_email, activation_key=None):
     """
     Given a new email for a user, does some basic verification of the new address and sends an activation message
     to the new address. If any issues are encountered with verification or sending the message, a ValueError will
@@ -2003,6 +2037,10 @@ def do_email_change_request(user, new_email, activation_key=uuid.uuid4().hex):
         pec.user = user
     else:
         pec = pec_list[0]
+
+    # if activation_key is not passing as an argument, generate a random key
+    if not activation_key:
+        activation_key = uuid.uuid4().hex
 
     pec.new_email = new_email
     pec.activation_key = activation_key
@@ -2028,6 +2066,19 @@ def do_email_change_request(user, new_email, activation_key=uuid.uuid4().hex):
     except Exception:  # pylint: disable=broad-except
         log.error(u'Unable to send email activation link to user from "%s"', from_address, exc_info=True)
         raise ValueError(_('Unable to send email activation link. Please try again later.'))
+
+    # When the email address change is complete, a "edx.user.settings.changed" event will be emitted.
+    # But because changing the email address is multi-step, we also emit an event here so that we can
+    # track where the request was initiated.
+    tracker.emit(
+        SETTING_CHANGE_INITIATED,
+        {
+            "setting": "email",
+            "old": context['old_email'],
+            "new": context['new_email'],
+            "user_id": user.id,
+        }
+    )
 
 
 @ensure_csrf_cookie

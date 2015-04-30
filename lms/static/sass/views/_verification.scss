@@ -219,7 +219,7 @@
           @extend %t-title7;
           @extend %t-weight2;
           vertical-align: middle;
-          color: $m-gray-l1;
+          color: $m-gray-d3;
           background: $m-gray-l4;
         }
       }
@@ -1231,6 +1231,17 @@
         @extend %t-copy-base;
       }
 
+      .wrapper-copy-inline {
+        @extend %t-copy-base;
+        display: inline-block;
+        width: 100%;
+      }
+
+      .copy-inline {
+        @extend %t-copy-base;
+        display: inline-block;
+      }
+
       .action-select {
         @include fill-parent;
 
@@ -1420,7 +1431,7 @@
       }
     }
 
-    @include media( $desktop ) {
+    @include media( $edx-bp-large ) {
       .contribution-options {
         .field {
           width: auto;
@@ -1443,7 +1454,7 @@
       }
     }
 
-    @include media( $xl-desktop ) {
+    @include media( $edx-bp-huge ) {
       .register-choice {
         .list-actions {
           float: right;
@@ -2413,6 +2424,10 @@
     @include font-size(16);
     margin-top: 18px;
     color: $m-blue-d1;
+  }
+
+  .title {
+    font-weight: 400;
   }
 
   // progress nav

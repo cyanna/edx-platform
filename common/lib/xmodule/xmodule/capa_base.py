@@ -26,7 +26,6 @@ from xmodule.exceptions import NotFoundError
 from xblock.fields import Scope, String, Boolean, Dict, Integer, Float
 from .fields import Timedelta, Date
 from django.utils.timezone import UTC
-from .util.duedate import get_extended_due_date
 from xmodule.capa_base_constants import RANDOMIZATION, SHOWANSWER
 from django.conf import settings
 
@@ -107,14 +106,6 @@ class CapaFields(object):
         values={"min": 0}, scope=Scope.settings
     )
     due = Date(help=_("Date that this problem is due by"), scope=Scope.settings)
-    extended_due = Date(
-        help=_("Date that this problem is due by for a particular student. This "
-               "can be set by an instructor, and will override the global due "
-               "date if it is set to a date that is later than the global due "
-               "date."),
-        default=None,
-        scope=Scope.user_state,
-    )
     graceperiod = Timedelta(
         help=_("Amount of time after the due date that submissions will be accepted"),
         scope=Scope.settings
@@ -218,7 +209,7 @@ class CapaMixin(CapaFields):
     def __init__(self, *args, **kwargs):
         super(CapaMixin, self).__init__(*args, **kwargs)
 
-        due_date = get_extended_due_date(self)
+        due_date = self.due
 
         if self.graceperiod is not None and due_date:
             self.close_date = due_date + self.graceperiod
@@ -1136,25 +1127,25 @@ class CapaMixin(CapaFields):
         Returns time duration nicely formated, e.g. "3 minutes 4 seconds"
         """
         # Here _ is the N variant ungettext that does pluralization with a 3-arg call
-        _ = self.runtime.service(self, "i18n").ungettext
+        ungettext = self.runtime.service(self, "i18n").ungettext
         hours = num_seconds // 3600
         sub_hour = num_seconds % 3600
         minutes = sub_hour // 60
         seconds = sub_hour % 60
         display = ""
         if hours > 0:
-            display += _("{num_hour} hour", "{num_hour} hours", hours).format(num_hour=hours)
+            display += ungettext("{num_hour} hour", "{num_hour} hours", hours).format(num_hour=hours)
         if minutes > 0:
             if display != "":
                 display += " "
             # translators: "minute" refers to a minute of time
-            display += _("{num_minute} minute", "{num_minute} minutes", minutes).format(num_minute=minutes)
+            display += ungettext("{num_minute} minute", "{num_minute} minutes", minutes).format(num_minute=minutes)
         # Taking care to make "0 seconds" instead of "" for 0 time
         if seconds > 0 or (hours == 0 and minutes == 0):
             if display != "":
                 display += " "
             # translators: "second" refers to a second of time
-            display += _("{num_second} second", "{num_second} seconds", seconds).format(num_second=seconds)
+            display += ungettext("{num_second} second", "{num_second} seconds", seconds).format(num_second=seconds)
         return display
 
     def get_submission_metadata_safe(self, answers, correct_map):

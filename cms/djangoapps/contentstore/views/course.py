@@ -22,7 +22,6 @@ from edxmako.shortcuts import render_to_response
 from xmodule.course_module import DEFAULT_START_DATE
 from xmodule.error_module import ErrorDescriptor
 from xmodule.modulestore.django import modulestore
-from xmodule.modulestore.courseware_index import CoursewareSearchIndexer, SearchIndexingError
 from xmodule.contentstore.content import StaticContent
 from xmodule.tabs import PDFTextbookTabs
 from xmodule.partitions.partitions import UserPartition
@@ -35,6 +34,7 @@ from openedx.core.djangoapps.course_groups.partition_scheme import get_cohorted_
 
 from django_future.csrf import ensure_csrf_cookie
 from contentstore.course_info_model import get_course_updates, update_course_updates, delete_course_update
+from contentstore.courseware_index import CoursewareSearchIndexer, SearchIndexingError
 from contentstore.utils import (
     add_instructor,
     initialize_permissions,
@@ -69,6 +69,7 @@ from contentstore.views.entrance_exam import (
 
 from .library import LIBRARIES_ENABLED
 from .item import create_xblock_info
+from contentstore.push_notification import push_notification_enabled
 from course_creators.views import get_course_creator_status, add_user_with_status_unrequested
 from contentstore import utils
 from student.roles import (
@@ -778,7 +779,8 @@ def course_info_handler(request, course_key_string):
                     'context_course': course_module,
                     'updates_url': reverse_course_url('course_info_update_handler', course_key),
                     'handouts_locator': course_key.make_usage_key('course_info', 'handouts'),
-                    'base_asset_url': StaticContent.get_base_url_path_for_course_assets(course_module.id)
+                    'base_asset_url': StaticContent.get_base_url_path_for_course_assets(course_module.id),
+                    'push_notification_enabled': push_notification_enabled()
                 }
             )
         else:

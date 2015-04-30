@@ -10,8 +10,9 @@ import requests
 from datetime import datetime
 import dateutil.parser
 from lazy import lazy
+from base64 import b32encode
 
-
+from xmodule.exceptions import UndefinedContext
 from xmodule.seq_module import SequenceDescriptor, SequenceModule
 from xmodule.graders import grader_from_conf
 from xmodule.tabs import CourseTabList
@@ -834,9 +835,28 @@ class CourseFields(object):
         scope=Scope.settings,
     )
 
+    social_sharing_url = String(
+        display_name=_("Social Media Sharing URL"),
+        help=_(
+            "If dashboard social sharing and custom course URLs are enabled, you can provide a URL "
+            "(such as the URL to a course About page) that social media sites can link to. URLs must "
+            "be fully qualified. For example: http://www.edx.org/course/Introduction-to-MOOCs-ITM001"
+        ),
+        default=None,
+        scope=Scope.settings,
+    )
+
+
+class CourseModule(CourseFields, SequenceModule):  # pylint: disable=abstract-method
+    """
+    The CourseDescriptor needs its module_class to be a SequenceModule, but some code that
+    expects a CourseDescriptor to have all its fields can fail if it gets a SequenceModule instead.
+    This class is to make sure that all the fields are present in all cases.
+    """
+
 
 class CourseDescriptor(CourseFields, SequenceDescriptor):
-    module_class = SequenceModule
+    module_class = CourseModule
 
     def __init__(self, *args, **kwargs):
         """
@@ -1213,6 +1233,14 @@ class CourseDescriptor(CourseFields, SequenceDescriptor):
 
 
         """
+        # If this descriptor has been bound to a student, return the corresponding
+        # XModule. If not, just use the descriptor itself
+        try:
+            module = getattr(self, '_xmodule', None)
+            if not module:
+                module = self
+        except UndefinedContext:
+            module = self
 
         all_descriptors = []
         graded_sections = {}
@@ -1370,4 +1398,13 @@ class CourseDescriptor(CourseFields, SequenceDescriptor):
         return (
             self.video_upload_pipeline is not None and
             'course_video_upload_token' in self.video_upload_pipeline
+        )
+
+    def clean_id(self, padding_char='='):
+        """
+        Returns a unique deterministic base32-encoded ID for the course.
+        The optional padding_char parameter allows you to override the "=" character used for padding.
+        """
+        return "course_{}".format(
+            b32encode(unicode(self.location.course_key)).replace('=', padding_char)
         )
