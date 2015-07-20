@@ -122,6 +122,7 @@ class Model(object):
 
     @classmethod
     def after_save(cls, instance):
+        # This signal is used in edx_edvera_api. Please keep this line while merging.
         signals.post_save.send(sender=cls, instance=instance)
 
     def save(self):
