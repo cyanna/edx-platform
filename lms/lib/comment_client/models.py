@@ -1,7 +1,7 @@
 import logging
 
 from .utils import extract, perform_request, CommentClientRequestError
-
+from django.db.models import signals
 
 log = logging.getLogger(__name__)
 
@@ -122,7 +122,8 @@ class Model(object):
 
     @classmethod
     def after_save(cls, instance):
-        pass
+        # This signal is used in edx_edvera_api. Please keep this line while merging.
+        signals.post_save.send(sender=cls, instance=instance)
 
     def save(self):
         self.before_save(self)
