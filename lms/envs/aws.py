@@ -69,7 +69,12 @@ CELERY_CACHE_BACKEND = 'celery'
 
 # When the broker is behind an ELB, use a heartbeat to refresh the
 # connection and to detect if it has been dropped.
-BROKER_HEARTBEAT = 10.0
+
+# Redmine task 23080: Changed heartbeat from 10.0 to 0 based on suggestion at
+# https://groups.google.com/forum/#!topic/openedx-ops/d7lJfzCtF8Q
+# Also changed /etc/rabbitmq/rabbitmq.config to {log_levels, [{connection, error}]} based on
+# http://stackoverflow.com/questions/13946153/rabbitmq-server-connection-closing-abruptly
+BROKER_HEARTBEAT = 0
 BROKER_HEARTBEAT_CHECKRATE = 2
 
 # Each worker should only fetch one message at a time
