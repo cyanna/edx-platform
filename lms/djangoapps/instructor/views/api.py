@@ -2385,7 +2385,8 @@ def spoc_gradebook(request, course_id):
             'id': student.id,
             'email': student.email,
             'grade_summary': student_grades(student, request, course),
-            'realname': student.profile.name,
+	    # added error handling to fix gradebook issue
+            'realname': student.profile.name if student.profile is not None else "Value not found",
         }
         for student in enrolled_students
     ]
