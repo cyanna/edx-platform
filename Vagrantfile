@@ -1,3 +1,11 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# This file was downloaded from https://raw.githubusercontent.com/edx/configuration/master/vagrant/release/fullstack/Vagrantfile
+# This includes a full image of edx. The servers and user logins are here:
+# https://github.com/edx/configuration/wiki/edx-Full-stack--installation-using-Vagrant-Virtualbox
+# Note: this does not use the code from the Cyanna repo.
+
 Vagrant.require_version ">= 1.5.3"
 
 VAGRANTFILE_API_VERSION = "2"
@@ -19,12 +27,13 @@ openedx_releases = {
     :name => "cypress-fullstack", :file => "cypress-fullstack.box",
   },
   # Birch is deprecated and unsupported
-  # "named-release/birch.2" => {
-  #   :name => "birch-fullstack-2", :file => "birch-2-fullstack.box",
-  # },
+   "named-release/birch.2" => {
+     :name => "birch-fullstack-2", :file => "birch-2-fullstack.box",
+   },
 }
 openedx_releases.default = {
-  :name => "dogwood-fullstack-rc2", :file => "20151221-dogwood-fullstack-rc2.box",
+  # changing default to what I can guess is the closest to what we have
+  :name => "birch-fullstack-2", :file => "birch-2-fullstack.box",
 }
 rel = ENV['OPENEDX_RELEASE']
 
